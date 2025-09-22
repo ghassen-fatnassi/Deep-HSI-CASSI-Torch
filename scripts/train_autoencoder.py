@@ -341,7 +341,7 @@ def main():
                         help='Path to processed patches')
     parser.add_argument('--batch_size', type=int, default=128, help='Batch size')
     parser.add_argument('--epochs', type=int, default=200, help='Number of epochs')
-    parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
+    parser.add_argument('--lr', type=float, default=5e-4, help='Learning rate')
     parser.add_argument('--R', type=int, default=64, help='Number of features')
     parser.add_argument('--d', type=int, default=11, help='Network depth')
     parser.add_argument('--wandb_key', type=str, default=None, help='WandB API key')
