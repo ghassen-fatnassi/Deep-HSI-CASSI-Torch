@@ -49,11 +49,11 @@ WANDB_KEY="48c8b8d2ffad22e15da2eb80cf917fb45c1fb543"  # Replace this!
 # Run training with recommended parameters
 python3 scripts/train_autoencoder.py \
     --data_path /root/Deep-HSI-CASSI-Torch/data/processed/all_patches \
-    --batch_size 512 \
-    --epochs 200 \
+    --batch_size 64 \
+    --epochs 60 \
     --lr 5e-4 \
     --R 64 \
-    --d 11 \
+    --d 5 \
     --wandb_key $WANDB_KEY \
     --val_split 0.2
 
