@@ -1,3 +1,4 @@
+
 import os
 import sys
 import glob
@@ -77,31 +78,29 @@ def preprocess_cave(cave_root, save_folder):
     print(f"CAVE: Saved {total_patches} patches")
     return total_patches
 
-# ===========================
-# KAIST Dataset Processing
-# ===========================
 def read_exr_file_openexr(exr_path, skip_first_n=3):
     """Reads an EXR file using OpenEXR."""
     exr_file = OpenEXR.InputFile(exr_path)
     header = exr_file.header()
     dw = header['dataWindow']
     H, W = dw.max.y - dw.min.y + 1, dw.max.x - dw.min.x + 1
-    
+
     channel_names = sorted(header['channels'].keys())
     channel_names = channel_names[skip_first_n:]
-    
+
     if len(channel_names) != 31:
         raise ValueError(f"Expected 31 channels, got {len(channel_names)}")
-    
+
     FLOAT = Imath.PixelType(Imath.PixelType.FLOAT)
     channels = []
     for c in channel_names:
         raw = exr_file.channel(c, FLOAT)
         arr = np.frombuffer(raw, dtype=np.float32).reshape(H, W)
         channels.append(arr)
-    
+
     tensor = torch.tensor(np.stack(channels, axis=0), dtype=torch.float32)
     return tensor
+
 
 def process_exr_file(exr_path):
     try:
@@ -112,25 +111,22 @@ def process_exr_file(exr_path):
         print(f"Skipping {exr_path}: {e}")
         return None, None
 
+
 def preprocess_kaist(exr_folder, save_folder):
-    """Preprocess all EXR files in KAIST dataset using multiprocessing"""
+    """Preprocess all EXR files in KAIST dataset sequentially (no multiprocessing)."""
     print("\n=== Processing KAIST Dataset ===")
     os.makedirs(save_folder, exist_ok=True)
-    
+
     exr_files = sorted(glob.glob(os.path.join(exr_folder, '*.exr')))
     total_patches = 0
-    
-    # Use multiprocessing for EXR reading
-    with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-        results = list(tqdm(executor.map(process_exr_file, exr_files), 
-                          total=len(exr_files), desc="Processing EXR files"))
-    
-    # Process results and save patches
-    for tensor, base_name in results:
+
+    # Sequential processing
+    for exr_path in tqdm(exr_files, desc="Processing EXR files"):
+        tensor, base_name = process_exr_file(exr_path)
         if tensor is not None:
             patches = save_patches(tensor, save_folder, base_name, PATCH_SIZE, STRIDE)
             total_patches += len(patches)
-    
+
     print(f"KAIST: Saved {total_patches} patches")
     return total_patches
 

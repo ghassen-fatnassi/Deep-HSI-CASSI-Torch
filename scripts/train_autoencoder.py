@@ -42,7 +42,10 @@ class HyperspectralDataset(Dataset):
             ])
         else:
             self.transform = None
-
+            
+    def __len__(self):
+        return len(self.files)
+    
     def _compute_normalization_stats(self):
         # Compute mean and std for normalization
         sample = torch.load(self.files[0])
@@ -54,7 +57,7 @@ class HyperspectralDataset(Dataset):
         count = 0
         
         print("Computing normalization statistics...")
-        for f in tqdm(self.files, desc="Computing stats"):
+        for f in self.files:
             x = torch.load(f)
             mean += x.view(c, -1).mean(dim=1)
             std += x.view(c, -1).std(dim=1)

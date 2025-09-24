@@ -1,0 +1,63 @@
+_wandb:
+    value:
+        cli_version: 0.22.0
+        e:
+            zrj0fepreriiyvmjfat0ongnajarckun:
+                codePath: scripts/recon.py
+                codePathLocal: scripts/recon.py
+                cpu_count: 2
+                cpu_count_logical: 4
+                disk:
+                    /:
+                        total: "241919975424"
+                        used: "87716278272"
+                email: oneinbillion77@gmail.com
+                executable: /mnt/USEFUL/pro/GetCracked/REPOs/Deep-HSI-CASSI-Torch/sony/bin/python
+                git:
+                    commit: 727db1bde299e7e567f008a2f3758f7c3d1b8d98
+                    remote: git@github.com:ghassen-fatnassi/Deep-HSI-CASSI-Torch.git
+                host: GASS
+                memory:
+                    total: "3440664576"
+                os: Linux-6.13.8-arch1-1-x86_64-with-glibc2.41
+                program: /mnt/USEFUL/pro/GetCracked/REPOs/Deep-HSI-CASSI-Torch/scripts/recon.py
+                python: CPython 3.13.2
+                root: /mnt/USEFUL/pro/GetCracked/REPOs/Deep-HSI-CASSI-Torch
+                startedAt: "2025-09-24T12:18:28.488547Z"
+                writerId: zrj0fepreriiyvmjfat0ongnajarckun
+        m: []
+        python_version: 3.13.2
+        t:
+            "1":
+                - 1
+            "2":
+                - 1
+            "3":
+                - 2
+                - 13
+                - 16
+                - 61
+            "4": 3.13.2
+            "5": 0.22.0
+            "10":
+                - 20
+            "12": 0.22.0
+            "13": linux-x86_64
+autoencoder_path:
+    value: checkpoints/best_autoencoder.pth
+device:
+    value: cpu
+img_n_chs:
+    value: 31
+n_iters_ADAM:
+    value: 100
+n_iters_ADMM:
+    value: 2
+param_lambda_alpha_fidelity:
+    value: 0.1
+param_learning_rate:
+    value: 0.05
+param_rho:
+    value: 0.1
+param_sparsity:
+    value: 0.01

@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import cv2
+import wandb
 from typing import List, Optional, Tuple, Dict
 
 # replace these imports with your actual ConvAE implementation
@@ -134,20 +135,20 @@ def load_autoencoder_from_checkpoint(path: str, device: str, in_channels: int = 
     checkpoint = torch.load(path, map_location=device)
     # build encoder/decoder using assumed signatures; adjust params if your ConvAE differs
     encoder = Encoder(in_channels=in_channels, R=R, d=11, use_batchnorm=True)
-    decoder = Decoder(out_channels=in_channels, R=R, d=11, use_batchnorm=False, output_activation='sigmoid')
+    decoder = Decoder(out_channels=in_channels, R=R, d=11, use_batchnorm=True, output_activation='sigmoid')
     model = ConvAutoencoder(encoder, decoder).to(device)
-    # try:
-    #     # checkpoint might be state_dict or full model
-    #     if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
-    #         model.load_state_dict(checkpoint['state_dict'])
-    #     elif isinstance(checkpoint, dict):
-    #         model.load_state_dict(checkpoint)
-    #     else:
-    #         model = checkpoint.to(device)
-    # except Exception as e:
-    #     print("Warning: couldn't load checkpoint directly into model:", e)
-    #     # try looser loading
-    #     model.load_state_dict({k.replace('module.', ''): v for k, v in checkpoint.items() if 'module.' in k or True}, strict=False)
+    try:
+        # checkpoint might be state_dict or full model
+        if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['state_dict'])
+        elif isinstance(checkpoint, dict):
+            model.load_state_dict(checkpoint)
+        else:
+            model = checkpoint.to(device)
+    except Exception as e:
+        print("Warning: couldn't load checkpoint directly into model:", e)
+        # try looser loading
+        model.load_state_dict({k.replace('module.', ''): v for k, v in checkpoint.items() if 'module.' in k or True}, strict=False)
     model.eval()
     return model
 
@@ -156,14 +157,48 @@ def reconstruct_snapshot_tensors(coded_snapshot: torch.Tensor,
                                  autoencoder_path: str,
                                  gt_hs: Optional[torch.Tensor] = None,
                                  img_n_chs: int = 31,
-                                 param_rho: float = 7.5e-2,
+                                 param_rho: float = 1e-1,
                                  param_sparsity: float = 1e-2,
                                  param_lambda_alpha_fidelity: float = 1e-1,
                                  param_learning_rate: float = 5e-2,
-                                 n_iters_ADMM: int = 5,
+                                 n_iters_ADMM: int = 20,
                                  n_iters_ADAM: int = 200,
-                                 ENABLE_ALPHA_FIDELITY: bool = True,
-                                 device: str = 'cuda' if torch.cuda.is_available() else 'cpu') -> Tuple[np.ndarray, np.ndarray]:
+                                 device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
+                                 use_wandb: bool = True,
+                                 wandb_project: str = "hyperspectral_reconstruction",
+                                 wandb_run_name: Optional[str] = None,
+                                 log_freq: int = 10) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Reconstruct hyperspectral image from coded snapshot with WandB logging.
+    
+    Args:
+        use_wandb: Whether to use WandB logging
+        wandb_project: WandB project name
+        wandb_run_name: Optional custom run name
+        log_freq: Frequency of logging (every N inner iterations)
+    """
+    
+    # Initialize WandB if requested
+    if use_wandb:
+        config = {
+            "img_n_chs": img_n_chs,
+            "param_rho": param_rho,
+            "param_sparsity": param_sparsity,
+            "param_lambda_alpha_fidelity": param_lambda_alpha_fidelity,
+            "param_learning_rate": param_learning_rate,
+            "n_iters_ADMM": n_iters_ADMM,
+            "n_iters_ADAM": n_iters_ADAM,
+            "device": device,
+            "autoencoder_path": autoencoder_path
+        }
+        
+        wandb.init(
+            project=wandb_project,
+            name=wandb_run_name,
+            config=config,
+            reinit=True
+        )
+    
     # coded_snapshot: torch tensor shape (H,W) or (1,H,W) or (B,1,H,W)
     # gt_hs: optional torch tensor shape (C,H,W)
     if coded_snapshot.dim() == 2:
@@ -193,33 +228,84 @@ def reconstruct_snapshot_tensors(coded_snapshot: torch.Tensor,
     optimizer = optim.Adam([recon_model.xk], lr=param_learning_rate, weight_decay=Config.WEIGHT_DECAY_LAMBDA)
     param_lambda = param_sparsity * param_rho
 
+    # Global step counter for logging
+    global_step = 0
+
     for i_admm in range(n_iters_ADMM):
         print(f'ADMM iter {i_admm+1}/{n_iters_ADMM}')
+        
         for i_inner in range(n_iters_ADAM):
             optimizer.zero_grad()
             losses = recon_model.compute_losses(coded_snapshot, mask3d, param_rho, param_lambda_alpha_fidelity)
             losses['total'].backward()
             optimizer.step()
 
-            if (i_inner % 50) == 0:
-                total = losses['total'].item()
-                data_l = losses['data'].item()
-                admm_l = losses['admm'].item()
-                alpha_l = losses['alpha_fidelity'].item()
-                print(f'  inner {i_inner}: total={total:.6f} data={data_l:.6f} admm={admm_l:.6f} alpha={alpha_l:.6f}')
-                if gt_tensor is not None:
-                    with torch.no_grad():
-                        recon = losses['img_recon']
-                        mse = torch.mean((recon - gt_tensor) ** 2)
-                        psnr = -10.0 * torch.log10(mse + 1e-12)
-                        print(f'    PSNR {psnr.item():.2f} dB')
+            # Extract loss values
+            total_loss = losses['total'].item()
+            data_loss = losses['data'].item()
+            admm_loss = losses['admm'].item()
+            alpha_loss = losses['alpha_fidelity'].item()
 
+            # Calculate PSNR if ground truth is available
+            psnr_value = None
+            mse_value = None
+            if gt_tensor is not None:
+                with torch.no_grad():
+                    recon = losses['img_recon']
+                    mse = torch.mean((recon - gt_tensor) ** 2)
+                    psnr = -10.0 * torch.log10(mse + 1e-12)
+                    psnr_value = psnr.item()
+                    mse_value = mse.item()
+
+            # Log to WandB
+            if use_wandb and (i_inner % log_freq == 0):
+                log_dict = {
+                    "admm_iter": i_admm,
+                    "inner_iter": i_inner,
+                    "global_step": global_step,
+                    "loss/total": total_loss,
+                    "loss/data": data_loss,
+                    "loss/admm": admm_loss,
+                    "loss/alpha_fidelity": alpha_loss,
+                    "hyperparams/rho": param_rho,
+                    "hyperparams/lambda": param_lambda,
+                    "hyperparams/lambda_alpha": param_lambda_alpha_fidelity
+                }
+                
+                if psnr_value is not None:
+                    log_dict["metrics/psnr"] = psnr_value
+                    log_dict["metrics/mse"] = mse_value
+                
+                wandb.log(log_dict, step=global_step)
+
+            # Print progress
+            if (i_inner % 50) == 0:
+                print(f'  inner {i_inner}: total={total_loss:.6f} data={data_loss:.6f} admm={admm_loss:.6f} alpha={alpha_loss:.6f}')
+                if psnr_value is not None:
+                    print(f'    PSNR {psnr_value:.2f} dB')
+
+            global_step += 1
+
+        # ADMM update after inner loop
         with torch.no_grad():
             img_recon = recon_model.autoencoder.decoder(recon_model.xk)
             if img_recon.dim() == 3:
                 img_recon = img_recon.unsqueeze(0)
             recon_model.admm_update(img_recon, param_lambda, param_rho)
+            
+            # Log ADMM variables statistics if using wandb
+            if use_wandb:
+                zk_mean = torch.mean(torch.abs(recon_model.zk)).item()
+                uk_mean = torch.mean(torch.abs(recon_model.uk)).item()
+                xk_mean = torch.mean(torch.abs(recon_model.xk)).item()
+                
+                wandb.log({
+                    f"admm_vars/zk_mean_abs": zk_mean,
+                    f"admm_vars/uk_mean_abs": uk_mean,
+                    f"admm_vars/xk_mean_abs": xk_mean,
+                }, step=global_step)
 
+    # Final reconstruction
     with torch.no_grad():
         img_recon_final = recon_model.autoencoder.decoder(recon_model.xk)
         if img_recon_final.dim() == 3:
@@ -227,11 +313,44 @@ def reconstruct_snapshot_tensors(coded_snapshot: torch.Tensor,
         img_recon_final = torch.clamp(img_recon_final, 0.0, 1.0)
         img_recon_np = img_recon_final.squeeze(0).permute(1, 2, 0).cpu().numpy()
 
+    # Log final metrics
+    if use_wandb:
+        final_log = {"reconstruction_complete": True}
+        
+        if gt_tensor is not None:
+            final_mse = torch.mean((img_recon_final - gt_tensor) ** 2).item()
+            final_psnr = -10.0 * np.log10(final_mse + 1e-12)
+            final_log.update({
+                "final_metrics/mse": final_mse,
+                "final_metrics/psnr": final_psnr
+            })
+        
+        wandb.log(final_log, step=global_step)
+        
+        # Log reconstruction images if available
+        if gt_tensor is not None:
+            # Log some spectral bands as images
+            bands_to_log = [0, img_n_chs//4, img_n_chs//2, 3*img_n_chs//4, img_n_chs-1]
+            for band_idx in bands_to_log:
+                if band_idx < img_n_chs:
+                    gt_band = gt_tensor[0, band_idx].cpu().numpy()
+                    recon_band = img_recon_final[0, band_idx].cpu().numpy()
+                    
+                    wandb.log({
+                        f"images/gt_band_{band_idx}": wandb.Image(gt_band),
+                        f"images/recon_band_{band_idx}": wandb.Image(recon_band),
+                    }, step=global_step)
+        
+        wandb.finish()
+
     wavelengths = np.arange(400, 400 + img_n_chs * 10, 10).astype(np.float32)
     return img_recon_np, wavelengths
 
 # Example usage (you provide tensors/checkpoint)
 if __name__ == "__main__":
+    # Set your WandB API key
+    wandb.login(key="48c8b8d2ffad22e15da2eb80cf917fb45c1fb543")
+    
     # user should replace these with real tensors/paths
     H = 96; W = 96; C = 31
     # ground truth tensor (C,H,W)
@@ -246,7 +365,18 @@ if __name__ == "__main__":
 
     # path to checkpoint
     checkpoint_path = 'checkpoints/best_autoencoder.pth'
-    recon, wls = reconstruct_snapshot_tensors(coded_torch, mask2d, checkpoint_path, gt_hs=gt_hs_tensor,
-                                               img_n_chs=C, n_iters_ADMM=2, n_iters_ADAM=100,
-                                               device='cpu')
+    
+    # Run reconstruction with WandB logging
+    recon, wls = reconstruct_snapshot_tensors(
+        coded_torch, mask2d, checkpoint_path, 
+        gt_hs=gt_hs_tensor,
+        img_n_chs=C, 
+        n_iters_ADMM=20, 
+        n_iters_ADAM=100,
+        device='cpu',
+        use_wandb=True,
+        wandb_project="hyperspectral_admm_reconstruction",
+        wandb_run_name="test_run",
+        log_freq=10
+    )
     print("recon shape:", recon.shape, "wls len:", len(wls))

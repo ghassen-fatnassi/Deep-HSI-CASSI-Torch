@@ -1,0 +1,28 @@
+{
+  "os":  "Linux-6.13.8-arch1-1-x86_64-with-glibc2.41",
+  "python":  "CPython 3.13.2",
+  "startedAt":  "2025-09-24T12:18:28.488547Z",
+  "program":  "/mnt/USEFUL/pro/GetCracked/REPOs/Deep-HSI-CASSI-Torch/scripts/recon.py",
+  "codePath":  "scripts/recon.py",
+  "codePathLocal":  "scripts/recon.py",
+  "git":  {
+    "remote":  "git@github.com:ghassen-fatnassi/Deep-HSI-CASSI-Torch.git",
+    "commit":  "727db1bde299e7e567f008a2f3758f7c3d1b8d98"
+  },
+  "email":  "oneinbillion77@gmail.com",
+  "root":  "/mnt/USEFUL/pro/GetCracked/REPOs/Deep-HSI-CASSI-Torch",
+  "host":  "GASS",
+  "executable":  "/mnt/USEFUL/pro/GetCracked/REPOs/Deep-HSI-CASSI-Torch/sony/bin/python",
+  "cpu_count":  2,
+  "cpu_count_logical":  4,
+  "disk":  {
+    "/":  {
+      "total":  "241919975424",
+      "used":  "87716278272"
+    }
+  },
+  "memory":  {
+    "total":  "3440664576"
+  },
+  "writerId":  "zrj0fepreriiyvmjfat0ongnajarckun"
+}
