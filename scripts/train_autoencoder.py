@@ -97,8 +97,8 @@ class HyperspectralDataset(Dataset):
 # =============================
 # Training Function
 # =============================
-def train(model, train_loader, val_loader=None, device='cuda', epochs=200, 
-          lr=1e-4, tau_w=1e-8, weight_decay=1e-4, grad_clip=1.0, 
+def train(model, train_loader, val_loader=None, device='cuda', epochs=60, 
+          lr=1e-4, tau_w=1e-8, weight_decay=1e-8, grad_clip=1.0, 
           save_dir="/root/Deep-HSI-CASSI-Torch/checkpoints", wandb_key=None):
     
     # Setup optimizer and scheduler
@@ -253,7 +253,7 @@ def main():
     parser.add_argument('--data_path', type=str, default='/root/Deep-HSI-CASSI-Torch/data/processed/all_patches',
                         help='Path to processed patches')
     parser.add_argument('--batch_size', type=int, default=128, help='Batch size')
-    parser.add_argument('--epochs', type=int, default=200, help='Number of epochs')
+    parser.add_argument('--epochs', type=int, default=60, help='Number of epochs')
     parser.add_argument('--lr', type=float, default=5e-4, help='Learning rate')
     parser.add_argument('--R', type=int, default=64, help='Number of features')
     parser.add_argument('--d', type=int, default=5, help='Network depth')

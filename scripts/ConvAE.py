@@ -82,11 +82,7 @@ def ae_loss_exact(recon, x, tau_w=1e-8, model=None):
     k = x.size(0)
     mse_term = 0.5 * F.mse_loss(recon, x, reduction='sum') / k
     wd_term = 0.0
-    if model is not None:
-        weights = [p for n,p in model.named_parameters() if 'weight' in n and p.dim()>1]
-        if weights:
-            all_weights = torch.cat([w.view(-1) for w in weights])
-            wd_term = tau_w * torch.sum(all_weights ** 2)
+
     return mse_term + wd_term
 
 def psnr(x_hat, x, max_val=1.0):
