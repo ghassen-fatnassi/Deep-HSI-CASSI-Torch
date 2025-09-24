@@ -158,9 +158,9 @@ def reconstruct_snapshot_tensors(coded_snapshot: torch.Tensor,
                                  gt_hs: Optional[torch.Tensor] = None,
                                  img_n_chs: int = 31,
                                  param_rho: float = 1e-1,
-                                 param_sparsity: float = 1e-2,
-                                 param_lambda_alpha_fidelity: float = 1e-1,
-                                 param_learning_rate: float = 5e-2,
+                                 param_sparsity: float = 1e-3,
+                                 param_lambda_alpha_fidelity: float = 1e-2,
+                                 param_learning_rate: float = 5e-4,
                                  n_iters_ADMM: int = 20,
                                  n_iters_ADAM: int = 200,
                                  device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
@@ -354,7 +354,7 @@ if __name__ == "__main__":
     # user should replace these with real tensors/paths
     H = 96; W = 96; C = 31
     # ground truth tensor (C,H,W)
-    gt_hs_tensor = torch.load("test/balloons_ms_patch109.pt")  # user-provided tensor
+    gt_hs_tensor = torch.load("test/balloons_ms_patch10.pt")  # user-provided tensor
     # 2D mask generation (numpy)
     mask2d = Modulation.generate_random_mask(h=H, w=W, scale=1.0)
     # generate mask3d & coded image purely with numpy for demo
@@ -371,9 +371,9 @@ if __name__ == "__main__":
         coded_torch, mask2d, checkpoint_path, 
         gt_hs=gt_hs_tensor,
         img_n_chs=C, 
-        n_iters_ADMM=20, 
-        n_iters_ADAM=100,
-        device='cpu',
+        n_iters_ADMM=50, 
+        n_iters_ADAM=500,
+        device='cuda',
         use_wandb=True,
         wandb_project="hyperspectral_admm_reconstruction",
         wandb_run_name="test_run",
